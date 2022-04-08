@@ -206,6 +206,8 @@ def train(train_data):
             total_loss = 0
             start_time = time.time()
 
+            
+## Reference: https://github.com/oliverguhr/transformer-time-series-prediction
 def evaluate(eval_model, data_source, require_plot = False):
     eval_model.eval() 
     total_loss = 0.
@@ -231,7 +233,6 @@ def evaluate(eval_model, data_source, require_plot = False):
         #plt.close()
     
     return total_loss / len(data_source)
-
 
 def predict(eval_model, data_source, steps):
     eval_model.eval() 
