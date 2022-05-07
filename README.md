@@ -6,7 +6,7 @@ Cryptocurrency price prediction with Transformers Network
 ### Linux
 1. Install dependencies
 ```sh 
-pip3 install yfinance plotly pandas
+pip3 install pytorch matplotlib yfinance plotly pandas
 ```
 2. Run code
 ```sh
