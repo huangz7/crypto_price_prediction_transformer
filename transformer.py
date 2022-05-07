@@ -36,17 +36,12 @@ import requests
 import pandas as pd
 import json
 
-# Change this part to locate the correct directory where dataset resides
-load_from_drive = False
-
-if load_from_drive:
-    from google.colab import drive
-    drive.mount('/content/gdrive')
-    ## Update the experiments directory
-    EXPERIMENTS_DIRECTORY = '/content/gdrive/My Drive/Datasets/shared/experiments/'
-    DATA_DIRECTORY = '/content/gdrive/My Drive/Datasets/shared/experiments/data/'
-    CELEBA_GOOGLE_DRIVE_PATH = DATA_DIRECTORY + 'data.hdf5'
-    IMDB_REVIEWS_FILE_PATH = DATA_DIRECTORY + 'data/'
+# Data source
+import numpy as np
+import pandas as pd
+import yfinance as yf
+#Data viz
+import plotly.graph_objs as go
 
 %matplotlib inline
 
@@ -60,11 +55,6 @@ print("Random Seed: ", manualSeed)
 random.seed(manualSeed)
 np.random.seed(manualSeed)
 torch.manual_seed(manualSeed)
-
-input_window = 100
-output_window = 5
-batch_size = 10
-eval_batch_size = 1
 
 ## PositionalEncoding Class 
 # Reference: https://github.com/pytorch/tutorials/blob/master/beginner_source/transformer_tutorial.py
@@ -119,8 +109,8 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 def data_process():
+    '''
     # Reference: https://github.com/dushyant18033/BTC-Price-Prediction-ML-Project/blob/master/ARIMA.py
-    # Fetching data from the server
     url = "https://web-api.coinmarketcap.com/v1/cryptocurrency/ohlcv/historical"
     param = {"convert":"USD","slug":"bitcoin","time_end":"1601510400","time_start":"1367107200"}
     content = requests.get(url=url, params=param).json()
@@ -138,9 +128,26 @@ def data_process():
     df = df.drop(columns=['time_open','time_close','time_high','time_low', 'quote.USD.low', 'quote.USD.high', 'quote.USD.open', 'quote.USD.close', 'quote.USD.volume', 'quote.USD.market_cap', 'quote.USD.timestamp'])
     df = df.dropna()
     series = df['Open'].to_numpy()
+    '''
 
-    max_time = 800
-    time = np.arange(0, min(max_time, 0.1 * len(series)), 0.1)
+    # Yahoo finance APIs
+    # Fetching data from the server
+    # 2 year opening
+    #max_time = 730
+    #feat_index = 0
+
+    # 2 year closing
+    #max_time = 730
+    #feat_index = 1
+
+    # 5 year opening
+    max_time = 1825
+    feat_index = 0
+
+    data = yf.download(tickers='BTC-USD', period = f'{max_time}d', interval = '1d')
+    series = data.to_numpy()[:, feat_index]
+    
+    time = np.arange(0, min(max_time, len(series)), 1)
     series = series[:len(time)]
     
     # Normalize
@@ -173,7 +180,7 @@ def data_process():
 
 def get_batch(source, idx, manual_batch_size):
     seq_len = min(manual_batch_size, len(source) - 1 - idx)
-    data = source[idx:idx+seq_len]    
+    data = source[idx:idx+seq_len]
     input = torch.stack(torch.stack([item[0] for item in data]).chunk(input_window,1)) # 1 is feature size
     target = torch.stack(torch.stack([item[1] for item in data]).chunk(input_window,1))
     return input, target
@@ -201,13 +208,11 @@ def train(train_data):
             ms_per_batch = (time.time() - start_time) * 1000 / log_interval
             ppl = math.exp(cur_loss)
             print(f'| epoch {epoch:3d} | {batch:5d}/{batch:5d} batches | '
-                  f'lr {lr:02.2f} | ms/batch {ms_per_batch:5.2f} | '
+                  f'lr {lr:02.5f} | ms/batch {ms_per_batch:5.2f} | '
                   f'loss {cur_loss:5.2f} | ppl {ppl:8.2f}')
             total_loss = 0
             start_time = time.time()
 
-            
-## Reference: https://github.com/oliverguhr/transformer-time-series-prediction
 def evaluate(eval_model, data_source, require_plot = False):
     eval_model.eval() 
     total_loss = 0.
@@ -218,7 +223,7 @@ def evaluate(eval_model, data_source, require_plot = False):
             data, target = get_batch(data_source, i, eval_batch_size)
             # look like the model returns static values for the output window
             src_mask = generate_square_subsequent_mask(data.size(0)).to(device) 
-            output = eval_model(data, src_mask)    
+            output = eval_model(data, src_mask)
             total_loss += criterion(output[-output_window:], target[-output_window:]).item()
             
             test_result = torch.cat((test_result, output[-1].view(-1).cpu()), 0)
@@ -233,6 +238,7 @@ def evaluate(eval_model, data_source, require_plot = False):
         #plt.close()
     
     return total_loss / len(data_source)
+
 
 def predict(eval_model, data_source, steps):
     eval_model.eval() 
@@ -250,29 +256,33 @@ def predict(eval_model, data_source, steps):
     data = data.cpu().view(-1)
 
     subplot[1].clear()
-    subplot[1].plot(data,color="red")
-    subplot[1].plot(data[:input_window],color="blue")
+    subplot[1].plot(data, color="red")
+    subplot[1].plot(data[:input_window], color="blue")
     subplot[1].grid(True, which='both')
     subplot[1].axhline(y=0, color='k')
-    #plt.savefig('graph/transformer-predict%d.png'%steps)
     #plt.close()
 
 ## Main loop
+input_window = 30 # 2y-100 5y-30
+output_window = 5
+batch_size = 10
+eval_batch_size = 1
+
 train_data, val_data = data_process()
 fig, subplot = plt.subplots(2, 1)
 
 # Reference: https://github.com/pytorch/tutorials/blob/master/beginner_source/transformer_tutorial.py
 ntokens = 1  # size of data label
-emsize = 250  # embedding dimension
+emsize = 520  # embedding dimension 2y-260 5y-520
 d_hid = 2048  # dimension of the feedforward network model in nn.TransformerEncoder
 nlayers = 1  # number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-nhead = 10  # number of heads in nn.MultiheadAttention
+nhead = 20  # number of heads in nn.MultiheadAttention 2y-10 5y-20
 dropout = 0.1  # dropout probability
 model = TransformerModel(ntokens, emsize, nhead, d_hid, nlayers, dropout).to(device)
 
 #criterion = nn.CrossEntropyLoss()
 criterion = nn.MSELoss()
-lr = 0.00005
+lr = 0.0005
 
 #optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
@@ -286,9 +296,9 @@ for epoch in range(1, epochs + 1):
     epoch_start_time = time.time()
     train(train_data)
 
-    if(epoch % 10 is 0):
+    if(epoch % epochs is 0):
         val_loss = evaluate(model, val_data, True)
-        predict(model, val_data, 200)
+        predict(model, val_data, 60)
     else:
         val_loss = evaluate(model, val_data)
         
@@ -297,7 +307,7 @@ for epoch in range(1, epochs + 1):
     elapsed = time.time() - epoch_start_time
     print('-' * 89)
     print(f'| end of epoch {epoch:3d} | time: {elapsed:5.2f}s | '
-          f'valid loss {val_loss:5.2f} | valid ppl {val_ppl:8.2f}')
+          f'valid loss {val_loss:5.4f} | valid ppl {val_ppl:8.4f}')
     print('-' * 89)
 
     if val_loss < best_val_loss:
