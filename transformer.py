@@ -273,10 +273,10 @@ fig, subplot = plt.subplots(2, 1)
 
 # Reference: https://github.com/pytorch/tutorials/blob/master/beginner_source/transformer_tutorial.py
 ntokens = 1  # size of data label
-emsize = 520  # embedding dimension 2y-260 5y-520
+emsize = 500  # embedding dimension 2y-260 5y-500
 d_hid = 2048  # dimension of the feedforward network model in nn.TransformerEncoder
 nlayers = 1  # number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-nhead = 20  # number of heads in nn.MultiheadAttention 2y-10 5y-20
+nhead = 25  # number of heads in nn.MultiheadAttention 2y-10 5y-25
 dropout = 0.1  # dropout probability
 model = TransformerModel(ntokens, emsize, nhead, d_hid, nlayers, dropout).to(device)
 
