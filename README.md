@@ -21,6 +21,11 @@ python3 transformer.py
 ```
 3. Copy entire code body from transformer.py and run
 
+## Result
+You should then be able to see the result like
+![alt text](https://github.com/huangz7/crypto_price_prediction_transformer/blob/main/result_example.png?raw=true)
+
+
 
 MIT License
 
